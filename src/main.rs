@@ -115,14 +115,16 @@ fn paddle_movement(
         }
 
         let mut speed = PADDLE_SPEED;
-        if direction.abs() > EPSILON && (input.pressed(KeyCode::LShift) || input.pressed(KeyCode::RShift)) && state.boost >= 0.0 {
-            speed *= 2.0;
-            state.boost -= time.delta_seconds() * BOOST_DRAIN;
+        if direction.abs() > EPSILON && (input.pressed(KeyCode::LShift) || input.pressed(KeyCode::RShift)) {
+            if state.boost >= 0.0 {
+                speed *= 2.0;
+                state.boost -= time.delta_seconds() * BOOST_DRAIN;
+            }
             boost_timer.0.reset();
         }
 
         transform.translation.x += time.delta_seconds() * direction * speed;
-        transform.translation.x = transform.translation.x.min(BOUNDS).max(-BOUNDS);
+        transform.translation.x = transform.translation.x.clamp(-BOUNDS, BOUNDS);
     }
 }
 
@@ -132,7 +134,7 @@ fn boost_display(
     mut query: Query<(&Boost, &mut Transform, &mut Sprite)>,
 ) {
     if let Ok((_, mut transform, mut sprite)) = query.single_mut() {
-        sprite.size = Vec2::new(BOOST_BAR_W * (&state.boost / 100.0).min(1.0).max(0.0), BOOST_BAR_H);
+        sprite.size = Vec2::new(BOOST_BAR_W * (&state.boost / 100.0).clamp(0.0, 1.0), BOOST_BAR_H);
         transform.translation.x = BOOST_BAR_X - (100.0 - &state.boost);
     }
 }
@@ -145,6 +147,6 @@ fn boost_recharge(
 ) {
     if timer.0.tick(time.delta()).finished() {
         state.boost += BOOST_RECHARGE;
-        state.boost = state.boost.min(100.0);
+        state.boost = state.boost.clamp(0.0, 100.0)
     }
 }
