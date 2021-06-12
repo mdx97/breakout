@@ -106,6 +106,7 @@ fn startup(mut commands: Commands, mut materials: ResMut<Assets<ColorMaterial>>)
         .insert(Boost);
 }
 
+/// System for moving the paddle in response to player input.
 fn paddle_movement(
     time: Res<Time>,
     input: Res<Input<KeyCode>>,
@@ -136,6 +137,7 @@ fn paddle_movement(
     }
 }
 
+/// System for updating the ball's position.
 fn ball_movement(time: Res<Time>, mut query: Query<(&Ball, &Sprite, &mut Transform)>) {
     if let Ok((ball, _, mut transform)) = query.single_mut() {
         transform.translation.x += time.delta_seconds() * ball.velocity.x;
@@ -143,6 +145,7 @@ fn ball_movement(time: Res<Time>, mut query: Query<(&Ball, &Sprite, &mut Transfo
     }
 }
 
+/// System for handling collisions between the ball and other geometry in the scene.
 fn ball_collision(
     mut query: QuerySet<(
         Query<&mut Ball>,
@@ -166,6 +169,7 @@ fn ball_collision(
     query.q0_mut().single_mut().unwrap().velocity = velocity;
 }
 
+/// System for updating the boost HUD.
 fn boost_display(
     state: ResMut<State>,
     mut query: Query<(&Boost, &mut Transform, &mut Sprite)>,
@@ -176,6 +180,7 @@ fn boost_display(
     }
 }
 
+/// System for recharging the player's boost.
 fn boost_recharge(
     time: Res<Time>,
     mut state: ResMut<State>,
