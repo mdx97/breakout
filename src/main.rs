@@ -1,4 +1,8 @@
 use bevy::prelude::*;
+use bevy::sprite::collide_aabb::{collide, Collision};
+
+/// The constant speed the ball moves at.
+const BALL_SPEED: f32 = 250.0;
 
 // Boost Bar Attributes
 const BOOST_BAR_H: f32 = 15.0;
@@ -23,7 +27,10 @@ const EPSILON: f32 = 0.005;
 /// Constant factor to calculate paddle speed.
 const PADDLE_SPEED: f32 = 500.0;
 
-struct Ball;
+struct Ball {
+    velocity: Vec2,
+}
+
 struct Boost;
 struct BoostBackground;
 struct BoostTimer(Timer);
@@ -49,6 +56,8 @@ fn main() {
         .add_plugins(DefaultPlugins)
         .add_startup_system(startup.system())
         .add_system(paddle_movement.system())
+        .add_system(ball_movement.system())
+        .add_system(ball_collision.system())
         .add_system(boost_display.system())
         .add_system(boost_recharge.system())
         .run();
@@ -72,11 +81,11 @@ fn startup(mut commands: Commands, mut materials: ResMut<Assets<ColorMaterial>>)
     commands
         .spawn_bundle(SpriteBundle {
             material: white.clone(),
-            transform: Transform::from_xyz(0.0, -250.0, 0.0),
+            transform: Transform::from_xyz(0.0, 0.0, 0.0),
             sprite: Sprite::new(Vec2::new(30.0, 30.0)),
             ..Default::default()
         })
-        .insert(Ball);
+        .insert(Ball { velocity: Vec2::new(0.0, -BALL_SPEED)});
 
     commands
         .spawn_bundle(SpriteBundle {
@@ -97,7 +106,6 @@ fn startup(mut commands: Commands, mut materials: ResMut<Assets<ColorMaterial>>)
         .insert(Boost);
 }
 
-/// Handle player control of the paddle.
 fn paddle_movement(
     time: Res<Time>,
     input: Res<Input<KeyCode>>,
@@ -128,7 +136,36 @@ fn paddle_movement(
     }
 }
 
-/// Handle the boost HUD element.
+fn ball_movement(time: Res<Time>, mut query: Query<(&Ball, &Sprite, &mut Transform)>) {
+    if let Ok((ball, _, mut transform)) = query.single_mut() {
+        transform.translation.x += time.delta_seconds() * ball.velocity.x;
+        transform.translation.y += time.delta_seconds() * ball.velocity.y;
+    }
+}
+
+fn ball_collision(
+    mut query: QuerySet<(
+        Query<&mut Ball>,
+        Query<(&Ball, &Sprite, &Transform)>,
+        Query<(&Sprite, &Transform)>,
+    )>
+) {
+    let mut velocity = query.q0_mut().single_mut().unwrap().velocity.clone();
+
+    if let Ok((_, sprite, transform)) = query.q1().single() {
+        for (other_sprite, other_transform) in query.q2().iter() {
+            if let Some(collision) = collide(other_transform.translation.clone(), other_sprite.size.clone(), transform.translation.clone(), sprite.size.clone()) {
+                match collision {
+                    Collision::Left | Collision::Right => { velocity.x = -velocity.x },
+                    Collision::Top | Collision::Bottom => { velocity.y = -velocity.y },
+                };
+            }
+        }
+    }
+
+    query.q0_mut().single_mut().unwrap().velocity = velocity;
+}
+
 fn boost_display(
     state: ResMut<State>,
     mut query: Query<(&Boost, &mut Transform, &mut Sprite)>,
@@ -139,7 +176,6 @@ fn boost_display(
     }
 }
 
-/// Handles recharging the boost at regular intervals.
 fn boost_recharge(
     time: Res<Time>,
     mut state: ResMut<State>,
