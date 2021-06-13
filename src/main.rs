@@ -14,14 +14,14 @@ const BOOST_BAR_X: f32 = -500.0;
 /// Constant factor at which boost drains when the boost is held down.
 const BOOST_DRAIN: f32 = 50.0;
 
+/// The amount of pixels the boost HUD is inset from the edge of the screen.
+const BOOST_HUD_INSET: f32 = 30.0;
+
 /// The amount of boost rewarded each time.
 const BOOST_RECHARGE: f32 = 5.0;
 
 /// How often the boost recharges, in seconds.
 const BOOST_RECHARGE_INTERVAL: f32 = 1.0;
-
-/// Playing area, unsigned x-coordinate bounds.
-const BOUNDS: f32 = 500.0;
 
 /// Allowed deviation when comparing floats.
 const EPSILON: f32 = 0.005;
@@ -48,6 +48,8 @@ struct Paddle;
 
 struct State {
     boost: f32,
+    window_height: f32,
+    window_width: f32,
 }
 
 struct Wall(u32);
@@ -56,6 +58,8 @@ impl Default for State {
     fn default() -> Self {
         Self {
             boost: 100.0,
+            window_height: WINDOW_HEIGHT,
+            window_width: WINDOW_WIDTH,
         }
     }
 }
@@ -169,9 +173,9 @@ fn paddle_movement(
     input: Res<Input<KeyCode>>,
     mut state: ResMut<State>,
     mut boost_timer: ResMut<BoostTimer>,
-    mut query: Query<(&Paddle, &mut Transform)>,
+    mut query: Query<(&Paddle, &Sprite, &mut Transform)>,
 ) {
-    if let Ok((_, mut transform)) = query.single_mut() {
+    if let Ok((_, sprite, mut transform)) = query.single_mut() {
         let mut direction: f32 = 0.0;
         if input.pressed(KeyCode::A) {
             direction -= 1.0;
@@ -189,8 +193,9 @@ fn paddle_movement(
             boost_timer.0.reset();
         }
 
+        let x_bound = (&state.window_width / 2.0) - (sprite.size[0] / 2.0);
         transform.translation.x += time.delta_seconds() * direction * speed;
-        transform.translation.x = transform.translation.x.clamp(-BOUNDS, BOUNDS);
+        transform.translation.x = transform.translation.x.clamp(-x_bound.clone(), x_bound);
     }
 }
 
@@ -250,11 +255,18 @@ fn boost_recharge(
 }
 
 /// System for handling the position / size of elements when the screen resizes.
-fn window_resize(event: Res<Events<WindowResized>>, mut query: Query<(&Wall, &mut Sprite, &mut Transform)>) {
+fn window_resize(
+    event: Res<Events<WindowResized>>,
+    mut state: ResMut<State>,
+    mut walls: Query<(&Wall, &mut Sprite, &mut Transform)>
+) {
     // TODO: Need to handle the location of the HUD.
     // TODO: Need to handle paddle limits.
     for e in event.get_reader().iter(&event) {
-        for (wall, mut sprite, mut transform) in query.iter_mut() {
+        state.window_height = e.height;
+        state.window_width = e.width;
+
+        for (wall, mut sprite, mut transform) in walls.iter_mut() {
             match wall.0 {
                 0 => {
                     *sprite = Sprite::new(Vec2::new(WALL_THICKNESS, e.height));
