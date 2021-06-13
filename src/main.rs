@@ -6,16 +6,18 @@ use bevy::window::WindowResized;
 /// The constant speed the ball moves at.
 const BALL_SPEED: f32 = 250.0;
 
-// Boost Bar Attributes
+// Boost Bar dimensions.
 const BOOST_BAR_H: f32 = 15.0;
 const BOOST_BAR_W: f32 = 200.0;
-const BOOST_BAR_X: f32 = -500.0;
 
 /// Constant factor at which boost drains when the boost is held down.
 const BOOST_DRAIN: f32 = 50.0;
 
 /// The amount of pixels the boost HUD is inset from the edge of the screen.
 const BOOST_HUD_INSET: f32 = 30.0;
+
+/// The amount of pixels that the boost HUD border is on the edges.
+const BOOST_PADDING: f32 = 5.0;
 
 /// The amount of boost rewarded each time.
 const BOOST_RECHARGE: f32 = 5.0;
@@ -93,6 +95,8 @@ fn startup(mut commands: Commands, mut materials: ResMut<Assets<ColorMaterial>>)
     let black = materials.add(Color::BLACK.into());
     let white = materials.add(Color::WHITE.into());
 
+    // TODO: Create functions for calculating positions both here and in window_resize()?
+
     // Create walls
     commands
         .spawn_bundle(SpriteBundle {
@@ -148,11 +152,17 @@ fn startup(mut commands: Commands, mut materials: ResMut<Assets<ColorMaterial>>)
         .insert(Ball { velocity: Vec2::new(BALL_SPEED, -BALL_SPEED)});
 
     // Create Boost HUD
+    let boost_transform = Transform::from_xyz(
+        -(WINDOW_WIDTH / 2.0) + (BOOST_BAR_W / 2.0) + BOOST_HUD_INSET,
+        (WINDOW_HEIGHT / 2.0) - (BOOST_BAR_H / 2.0) - BOOST_HUD_INSET,
+        0.0
+    );
+
     commands
         .spawn_bundle(SpriteBundle {
             material: white.clone(),
-            transform: Transform::from_xyz(-500.0, 300.0, 0.0),
-            sprite: Sprite::new(Vec2::new(210.0, 25.0)),
+            transform: boost_transform.clone(),
+            sprite: Sprite::new(Vec2::new(BOOST_BAR_W + (BOOST_PADDING * 2.0), BOOST_BAR_H + (BOOST_PADDING * 2.0))),
             ..Default::default()
         })
         .insert(BoostBackground);
@@ -160,7 +170,7 @@ fn startup(mut commands: Commands, mut materials: ResMut<Assets<ColorMaterial>>)
     commands
         .spawn_bundle(SpriteBundle {
             material: materials.add(Color::LIME_GREEN.into()),
-            transform: Transform::from_xyz(BOOST_BAR_X, 300.0, 0.0),
+            transform: boost_transform,
             sprite: Sprite::new(Vec2::new(BOOST_BAR_W, BOOST_BAR_H)),
             ..Default::default()
         })
@@ -238,7 +248,7 @@ fn boost_display(
 ) {
     if let Ok((_, mut transform, mut sprite)) = query.single_mut() {
         sprite.size = Vec2::new(BOOST_BAR_W * (&state.boost / 100.0).clamp(0.0, 1.0), BOOST_BAR_H);
-        transform.translation.x = BOOST_BAR_X - (100.0 - &state.boost);
+        transform.translation.x = (-(&state.window_width / 2.0) + (BOOST_BAR_W / 2.0) + BOOST_HUD_INSET) - (100.0 - &state.boost);
     }
 }
 
@@ -257,8 +267,12 @@ fn boost_recharge(
 /// System for handling the position / size of elements when the screen resizes.
 fn window_resize(
     event: Res<Events<WindowResized>>,
+    mut query: QuerySet<(
+        Query<(&Wall, &mut Sprite, &mut Transform)>,
+        Query<(&Boost, &mut Transform)>,
+        Query<(&BoostBackground, &mut Transform)>,
+    )>,
     mut state: ResMut<State>,
-    mut walls: Query<(&Wall, &mut Sprite, &mut Transform)>
 ) {
     // TODO: Need to handle the location of the HUD.
     // TODO: Need to handle paddle limits.
@@ -266,7 +280,7 @@ fn window_resize(
         state.window_height = e.height;
         state.window_width = e.width;
 
-        for (wall, mut sprite, mut transform) in walls.iter_mut() {
+        for (wall, mut sprite, mut transform) in query.q0_mut().iter_mut() {
             match wall.0 {
                 0 => {
                     *sprite = Sprite::new(Vec2::new(WALL_THICKNESS, e.height));
@@ -282,6 +296,20 @@ fn window_resize(
                 },
                 _ => { },
             }
+        }
+
+        let boost_transform = Transform::from_xyz(
+            -(e.width / 2.0) + (BOOST_BAR_W / 2.0) + BOOST_HUD_INSET,
+            (e.height / 2.0) - (BOOST_BAR_H / 2.0) - BOOST_HUD_INSET,
+            0.0
+        );
+
+        if let Ok((_, mut transform)) = query.q1_mut().single_mut() {
+            *transform = boost_transform.clone();
+        }
+
+        if let Ok((_, mut transform)) = query.q2_mut().single_mut() {
+            *transform = boost_transform;
         }
     }
 }
