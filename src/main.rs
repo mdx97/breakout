@@ -47,6 +47,10 @@ const BRICK_ROW_SIZE: f32 = (BRICK_SIZE * BRICK_COUNT as f32) + (BRICK_MARGIN * 
 const BRICK_X_START: f32 = ((WINDOW_WIDTH - BRICK_ROW_SIZE) / 2.0) - (WINDOW_WIDTH / 2.0) + (BRICK_SIZE / 2.0);
 const BRICK_Y_START: f32 = 250.0;
 
+// Brick health constants.
+const BRICK_HEALTH_MAX: usize = 3;
+const BRICK_HEALTH_COLORS: [(u8, u8, u8); BRICK_HEALTH_MAX] = [(255, 255, 255), (255, 122, 0), (255, 0, 0)];
+
 struct Ball {
     velocity: Vec2,
 }
@@ -188,11 +192,14 @@ fn startup(mut commands: Commands, mut materials: ResMut<Assets<ColorMaterial>>)
         .insert(Boost);
 
     // Create bricks
+    let color = BRICK_HEALTH_COLORS[0];
+    let color = materials.add(Color::rgb_u8(color.0, color.1, color.2).into());
+
     for col in 0..BRICK_COUNT {
         for row in 0..BRICK_ROWS {
             commands
                 .spawn_bundle(SpriteBundle {
-                    material: white.clone(),
+                    material: color.clone(),
                     transform: Transform::from_xyz(
                         BRICK_X_START + (col as f32 * (BRICK_SIZE + BRICK_MARGIN)),
                         BRICK_Y_START - (row as f32 * (BRICK_SIZE + BRICK_MARGIN)),
@@ -201,7 +208,7 @@ fn startup(mut commands: Commands, mut materials: ResMut<Assets<ColorMaterial>>)
                     sprite: Sprite::new(Vec2::new(BRICK_SIZE, BRICK_SIZE)),
                     ..Default::default()
                 })
-                .insert(Brick(1));
+                .insert(Brick(BRICK_HEALTH_MAX as u32));
         }
     }
 }
@@ -263,8 +270,9 @@ fn brick_collision(
     mut query: QuerySet<(
         Query<&mut Ball>,
         Query<(&Ball, &Sprite, &Transform)>,
-        Query<(&mut Brick, &Sprite, &mut Transform)>,
-    )>
+        Query<(&mut Brick, &Sprite, &mut Transform, &mut Handle<ColorMaterial>)>,
+    )>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
     // TODO: There has GOT to be a better way to do this...
     let mut velocity = query.q0_mut().single_mut().unwrap().velocity.clone();
@@ -272,12 +280,16 @@ fn brick_collision(
     let ball_transform = query.q1().single().unwrap().2.clone();
     
     // TODO: Abstract collision detection code into a function.
-    for (mut brick, brick_sprite, mut brick_transform) in query.q2_mut().iter_mut() {
+    for (mut brick, brick_sprite, mut brick_transform, mut brick_material) in query.q2_mut().iter_mut() {
         if detect_collision(&ball_sprite, &ball_transform, brick_sprite, &brick_transform, &mut velocity) {
             brick.0 -= 1;
             if brick.0 == 0 {
                 // TODO: Actually destroy entity.
                 brick_transform.translation.x = -1000.0;
+            } else {
+                let color = BRICK_HEALTH_COLORS[BRICK_HEALTH_MAX - brick.0 as usize];
+                // TODO: Don't re-add material here - initialize all at start.
+                *brick_material = materials.add(Color::rgb_u8(color.0, color.1, color.2).into());
             }
         }
     }
