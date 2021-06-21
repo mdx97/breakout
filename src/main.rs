@@ -2,6 +2,7 @@ use bevy::app::Events;
 use bevy::prelude::*;
 use bevy::sprite::collide_aabb::{collide, Collision};
 use bevy::window::WindowResized;
+use rand::Rng;
 
 /// The constant speed the ball moves at.
 const BALL_SPEED: f32 = 250.0;
@@ -50,6 +51,9 @@ const BRICK_Y_START: f32 = 250.0;
 // Brick health constants.
 const BRICK_HEALTH_MAX: usize = 3;
 const BRICK_HEALTH_COLORS: [(u8, u8, u8); BRICK_HEALTH_MAX] = [(255, 255, 255), (255, 122, 0), (255, 0, 0)];
+
+// Brick spawning cosntants.
+const BRICK_PROBABILITY: f32 = 0.6;
 
 struct Ball {
     velocity: Vec2,
@@ -194,21 +198,24 @@ fn startup(mut commands: Commands, mut materials: ResMut<Assets<ColorMaterial>>)
     // Create bricks
     let color = BRICK_HEALTH_COLORS[0];
     let color = materials.add(Color::rgb_u8(color.0, color.1, color.2).into());
+    let mut rng = rand::thread_rng();
 
     for col in 0..BRICK_COUNT {
         for row in 0..BRICK_ROWS {
-            commands
-                .spawn_bundle(SpriteBundle {
-                    material: color.clone(),
-                    transform: Transform::from_xyz(
-                        BRICK_X_START + (col as f32 * (BRICK_SIZE + BRICK_MARGIN)),
-                        BRICK_Y_START - (row as f32 * (BRICK_SIZE + BRICK_MARGIN)),
-                        0.0,
-                    ),
-                    sprite: Sprite::new(Vec2::new(BRICK_SIZE, BRICK_SIZE)),
-                    ..Default::default()
-                })
-                .insert(Brick(BRICK_HEALTH_MAX as u32));
+            if rng.gen_range(0.0..1.0) < BRICK_PROBABILITY {
+                commands
+                    .spawn_bundle(SpriteBundle {
+                        material: color.clone(),
+                        transform: Transform::from_xyz(
+                            BRICK_X_START + (col as f32 * (BRICK_SIZE + BRICK_MARGIN)),
+                            BRICK_Y_START - (row as f32 * (BRICK_SIZE + BRICK_MARGIN)),
+                            0.0,
+                        ),
+                        sprite: Sprite::new(Vec2::new(BRICK_SIZE, BRICK_SIZE)),
+                        ..Default::default()
+                    })
+                    .insert(Brick(BRICK_HEALTH_MAX as u32));
+            }
         }
     }
 }
