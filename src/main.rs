@@ -246,6 +246,18 @@ fn ball_movement(time: Res<Time>, mut query: Query<(&Ball, &Sprite, &mut Transfo
     }
 }
 
+/// Detects if there is a collision between the two objects, handles updating the velocity, and returns whether or not a collision occured.
+fn detect_collision(sprite: &Sprite, transform: &Transform, other_sprite: &Sprite, other_transform: &Transform, velocity: &mut Vec2) -> bool {
+    if let Some(collision) = collide(transform.translation.clone(), sprite.size.clone(), other_transform.translation.clone(), other_sprite.size.clone()) {
+        match collision {
+            Collision::Left | Collision::Right => { velocity.x = -velocity.x },
+            Collision::Top | Collision::Bottom => { velocity.y = -velocity.y },
+        };
+        return true;
+    }
+    false
+}
+
 /// System for handling collisions between the ball and bricks.
 fn brick_collision(
     mut query: QuerySet<(
@@ -261,17 +273,11 @@ fn brick_collision(
     
     // TODO: Abstract collision detection code into a function.
     for (mut brick, brick_sprite, mut brick_transform) in query.q2_mut().iter_mut() {
-        if let Some(collision) = collide(brick_transform.translation.clone(), brick_sprite.size.clone(), ball_transform.translation.clone(), ball_sprite.size.clone()) {
-            match collision {
-                Collision::Left | Collision::Right => { velocity.x = -velocity.x },
-                Collision::Top | Collision::Bottom => { velocity.y = -velocity.y },
-            };
-
+        if detect_collision(&ball_sprite, &ball_transform, brick_sprite, &brick_transform, &mut velocity) {
             brick.0 -= 1;
             if brick.0 == 0 {
                 // TODO: Actually destroy entity.
                 brick_transform.translation.x = -1000.0;
-                println!("Brick Destroyed!");
             }
         }
     }
@@ -292,12 +298,7 @@ fn general_collision(
 
     if let Ok((_, sprite, transform)) = query.q1().single() {
         for (other_sprite, _, other_transform) in query.q2().iter() {
-            if let Some(collision) = collide(other_transform.translation.clone(), other_sprite.size.clone(), transform.translation.clone(), sprite.size.clone()) {
-                match collision {
-                    Collision::Left | Collision::Right => { velocity.x = -velocity.x },
-                    Collision::Top | Collision::Bottom => { velocity.y = -velocity.y },
-                };
-            }
+            detect_collision(sprite, transform, other_sprite, other_transform, &mut velocity);
         }
     }
 
