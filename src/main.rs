@@ -261,11 +261,32 @@ fn ball_movement(time: Res<Time>, mut query: Query<(&Ball, &Sprite, &mut Transfo
 }
 
 /// Detects if there is a collision between the two objects, handles updating the velocity, and returns whether or not a collision occured.
-fn detect_collision(sprite: &Sprite, transform: &Transform, other_sprite: &Sprite, other_transform: &Transform, velocity: &mut Vec2) -> bool {
+fn detect_collision(sprite: &Sprite, transform: &mut Transform, other_sprite: &Sprite, other_transform: &Transform, velocity: &mut Vec2) -> bool {
     if let Some(collision) = collide(transform.translation.clone(), sprite.size.clone(), other_transform.translation.clone(), other_sprite.size.clone()) {
         match collision {
             Collision::Left | Collision::Right => { velocity.x = -velocity.x },
             Collision::Top | Collision::Bottom => { velocity.y = -velocity.y },
+        };
+
+        // TODO: Collisions are working a bit better, but still wonky sometimes.
+        // Maybe research a better way to do this?
+        match collision {
+            Collision::Left => {
+                let left = other_transform.translation.x - (other_sprite.size.x / 2.0);
+                transform.translation.x = left - (sprite.size.x / 2.0) - 0.1;
+            },
+            Collision::Right => {
+                let right = other_transform.translation.x + (other_sprite.size.x / 2.0);
+                transform.translation.x = right + (sprite.size.x / 2.0) + 0.1;
+            },
+            Collision::Top => {
+                let top = other_transform.translation.y + (other_sprite.size.x / 2.0);
+                transform.translation.y = top + (sprite.size.y / 2.0) + 0.1;
+            },
+            Collision::Bottom => {
+                let bottom = other_transform.translation.y - (other_sprite.size.x / 2.0);
+                transform.translation.y = bottom - (sprite.size.y / 2.0) - 0.1;
+            },
         };
         return true;
     }
@@ -276,19 +297,19 @@ fn detect_collision(sprite: &Sprite, transform: &Transform, other_sprite: &Sprit
 fn brick_collision(
     mut query: QuerySet<(
         Query<&mut Ball>,
-        Query<(&Ball, &Sprite, &Transform)>,
+        Query<(&Ball, &Sprite, &mut Transform)>,
         Query<(&mut Brick, &Sprite, &mut Transform, &mut Handle<ColorMaterial>)>,
     )>,
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
     // TODO: There has GOT to be a better way to do this...
     let mut velocity = query.q0_mut().single_mut().unwrap().velocity.clone();
-    let ball_sprite = query.q1().single().unwrap().1.clone();
-    let ball_transform = query.q1().single().unwrap().2.clone();
+    let ball_sprite = query.q1_mut().single_mut().unwrap().1.clone();
+    let mut ball_transform = query.q1_mut().single_mut().unwrap().2.clone();
     
     // TODO: Abstract collision detection code into a function.
     for (mut brick, brick_sprite, mut brick_transform, mut brick_material) in query.q2_mut().iter_mut() {
-        if detect_collision(&ball_sprite, &ball_transform, brick_sprite, &brick_transform, &mut velocity) {
+        if detect_collision(&ball_sprite, &mut ball_transform, brick_sprite, &brick_transform, &mut velocity) {
             brick.0 -= 1;
             if brick.0 == 0 {
                 // TODO: Actually destroy entity.
@@ -309,16 +330,16 @@ fn brick_collision(
 fn general_collision(
     mut query: QuerySet<(
         Query<&mut Ball>,
-        Query<(&Ball, &Sprite, &Transform)>,
+        Query<(&Ball, &Sprite, &mut Transform)>,
         Query<(&Sprite, &Collider, &Transform)>,
     )>
 ) {
     let mut velocity = query.q0_mut().single_mut().unwrap().velocity.clone();
+    let ball_sprite = query.q1_mut().single_mut().unwrap().1.clone();
+    let mut ball_transform = query.q1_mut().single_mut().unwrap().2.clone();
 
-    if let Ok((_, sprite, transform)) = query.q1().single() {
-        for (other_sprite, _, other_transform) in query.q2().iter() {
-            detect_collision(sprite, transform, other_sprite, other_transform, &mut velocity);
-        }
+    for (other_sprite, _, other_transform) in query.q2().iter() {
+        detect_collision(&ball_sprite, &mut ball_transform, other_sprite, other_transform, &mut velocity);
     }
 
     query.q0_mut().single_mut().unwrap().velocity = velocity;
