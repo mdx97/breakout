@@ -38,6 +38,15 @@ const WALL_THICKNESS: f32 = 20.0;
 const WINDOW_HEIGHT: f32 = 720.0;
 const WINDOW_WIDTH: f32 = 1280.0;
 
+// Brick display constants.
+const BRICK_MARGIN: f32 = 15.0;
+const BRICK_ROWS: u32 = 3;
+const BRICK_SIZE: f32 = 50.0;
+const BRICK_COUNT: u32 = (WINDOW_WIDTH / (BRICK_SIZE + BRICK_MARGIN)) as u32;
+const BRICK_ROW_SIZE: f32 = (BRICK_SIZE * BRICK_COUNT as f32) + (BRICK_MARGIN * (BRICK_COUNT - 1) as f32);
+const BRICK_X_START: f32 = ((WINDOW_WIDTH - BRICK_ROW_SIZE) / 2.0) - (WINDOW_WIDTH / 2.0) + (BRICK_SIZE / 2.0);
+const BRICK_Y_START: f32 = 250.0;
+
 struct Ball {
     velocity: Vec2,
 }
@@ -45,6 +54,7 @@ struct Ball {
 struct Boost;
 struct BoostBackground;
 struct BoostTimer(Timer);
+struct Brick(u32);
 struct Collider;
 struct Paddle;
 
@@ -81,7 +91,8 @@ fn main() {
         .add_startup_system(startup.system())
         .add_system(paddle_movement.system())
         .add_system(ball_movement.system())
-        .add_system(ball_collision.system())
+        .add_system(brick_collision.system())
+        .add_system(general_collision.system())
         .add_system(boost_display.system())
         .add_system(boost_recharge.system())
         .add_system(window_resize.system())
@@ -175,6 +186,24 @@ fn startup(mut commands: Commands, mut materials: ResMut<Assets<ColorMaterial>>)
             ..Default::default()
         })
         .insert(Boost);
+
+    // Create bricks
+    for col in 0..BRICK_COUNT {
+        for row in 0..BRICK_ROWS {
+            commands
+                .spawn_bundle(SpriteBundle {
+                    material: white.clone(),
+                    transform: Transform::from_xyz(
+                        BRICK_X_START + (col as f32 * (BRICK_SIZE + BRICK_MARGIN)),
+                        BRICK_Y_START - (row as f32 * (BRICK_SIZE + BRICK_MARGIN)),
+                        0.0,
+                    ),
+                    sprite: Sprite::new(Vec2::new(BRICK_SIZE, BRICK_SIZE)),
+                    ..Default::default()
+                })
+                .insert(Brick(1));
+        }
+    }
 }
 
 /// System for moving the paddle in response to player input.
@@ -217,8 +246,42 @@ fn ball_movement(time: Res<Time>, mut query: Query<(&Ball, &Sprite, &mut Transfo
     }
 }
 
+/// System for handling collisions between the ball and bricks.
+fn brick_collision(
+    mut query: QuerySet<(
+        Query<&mut Ball>,
+        Query<(&Ball, &Sprite, &Transform)>,
+        Query<(&mut Brick, &Sprite, &mut Transform)>,
+    )>
+) {
+    // TODO: There has GOT to be a better way to do this...
+    let mut velocity = query.q0_mut().single_mut().unwrap().velocity.clone();
+    let ball_sprite = query.q1().single().unwrap().1.clone();
+    let ball_transform = query.q1().single().unwrap().2.clone();
+    
+    // TODO: Abstract collision detection code into a function.
+    for (mut brick, brick_sprite, mut brick_transform) in query.q2_mut().iter_mut() {
+        if let Some(collision) = collide(brick_transform.translation.clone(), brick_sprite.size.clone(), ball_transform.translation.clone(), ball_sprite.size.clone()) {
+            match collision {
+                Collision::Left | Collision::Right => { velocity.x = -velocity.x },
+                Collision::Top | Collision::Bottom => { velocity.y = -velocity.y },
+            };
+
+            brick.0 -= 1;
+            if brick.0 == 0 {
+                // TODO: Actually destroy entity.
+                brick_transform.translation.x = -1000.0;
+                println!("Brick Destroyed!");
+            }
+        }
+    }
+
+    query.q0_mut().single_mut().unwrap().velocity = velocity;
+
+}
+
 /// System for handling collisions between the ball and other geometry in the scene.
-fn ball_collision(
+fn general_collision(
     mut query: QuerySet<(
         Query<&mut Ball>,
         Query<(&Ball, &Sprite, &Transform)>,
