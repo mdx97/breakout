@@ -95,6 +95,7 @@ fn main() {
         .insert_resource(ClearColor(Color::rgb(0.1, 0.1, 0.1)))
         .insert_resource(State::default())
         .insert_resource(BoostTimer(Timer::from_seconds(BOOST_RECHARGE_INTERVAL, true)))
+        .insert_resource(Vec::<Handle<ColorMaterial>>::new())
         .add_plugins(DefaultPlugins)
         .add_startup_system(startup.system())
         .add_system(paddle_movement.system())
@@ -107,7 +108,11 @@ fn main() {
         .run();
 }
 
-fn startup(mut commands: Commands, mut materials: ResMut<Assets<ColorMaterial>>) {
+fn startup(
+    mut commands: Commands,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+    mut colors: ResMut<Vec<Handle<ColorMaterial>>>,
+) {
     commands.spawn_bundle(OrthographicCameraBundle::new_2d());
     commands.spawn_bundle(UiCameraBundle::default());
 
@@ -218,6 +223,12 @@ fn startup(mut commands: Commands, mut materials: ResMut<Assets<ColorMaterial>>)
             }
         }
     }
+
+    // Add colors to resource
+    for idx in 0..BRICK_HEALTH_COLORS.len() {
+        let color = BRICK_HEALTH_COLORS[idx];
+        colors.push(materials.add(Color::rgb_u8(color.0, color.1, color.2).into()));
+    }
 }
 
 /// System for moving the paddle in response to player input.
@@ -301,7 +312,7 @@ fn brick_collision(
         Query<(&Ball, &Sprite, &mut Transform)>,
         Query<(Entity, &mut Brick, &Sprite, &Transform, &mut Handle<ColorMaterial>)>,
     )>,
-    mut materials: ResMut<Assets<ColorMaterial>>,
+    colors: Res<Vec<Handle<ColorMaterial>>>,
 ) {
     // TODO: There has GOT to be a better way to do this...
     let mut velocity = query.q0_mut().single_mut().unwrap().velocity.clone();
@@ -314,9 +325,7 @@ fn brick_collision(
             if brick.0 == 0 {
                 commands.entity(entity).despawn();
             } else {
-                let color = BRICK_HEALTH_COLORS[BRICK_HEALTH_MAX - brick.0 as usize];
-                // TODO: Don't re-add material here - initialize all at start.
-                *brick_material = materials.add(Color::rgb_u8(color.0, color.1, color.2).into());
+                *brick_material = colors[BRICK_HEALTH_MAX - brick.0 as usize].clone();
             }
         }
     }
