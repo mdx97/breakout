@@ -50,7 +50,7 @@ const BRICK_Y_START: f32 = 250.0;
 
 // Brick health constants.
 const BRICK_HEALTH_MAX: usize = 3;
-const BRICK_HEALTH_COLORS: [(u8, u8, u8); BRICK_HEALTH_MAX] = [(255, 255, 255), (255, 122, 0), (255, 0, 0)];
+const BRICK_HEALTH_COLORS: [(u8, u8, u8); 3] = [(255, 255, 255), (255, 122, 0), (255, 0, 0)];
 
 // Brick spawning cosntants.
 const BRICK_PROBABILITY: f32 = 0.6;
@@ -295,10 +295,11 @@ fn detect_collision(sprite: &Sprite, transform: &mut Transform, other_sprite: &S
 
 /// System for handling collisions between the ball and bricks.
 fn brick_collision(
+    mut commands: Commands,
     mut query: QuerySet<(
         Query<&mut Ball>,
         Query<(&Ball, &Sprite, &mut Transform)>,
-        Query<(&mut Brick, &Sprite, &mut Transform, &mut Handle<ColorMaterial>)>,
+        Query<(Entity, &mut Brick, &Sprite, &Transform, &mut Handle<ColorMaterial>)>,
     )>,
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
@@ -307,13 +308,11 @@ fn brick_collision(
     let ball_sprite = query.q1_mut().single_mut().unwrap().1.clone();
     let mut ball_transform = query.q1_mut().single_mut().unwrap().2.clone();
     
-    // TODO: Abstract collision detection code into a function.
-    for (mut brick, brick_sprite, mut brick_transform, mut brick_material) in query.q2_mut().iter_mut() {
+    for (entity, mut brick, brick_sprite, brick_transform, mut brick_material) in query.q2_mut().iter_mut() {
         if detect_collision(&ball_sprite, &mut ball_transform, brick_sprite, &brick_transform, &mut velocity) {
             brick.0 -= 1;
             if brick.0 == 0 {
-                // TODO: Actually destroy entity.
-                brick_transform.translation.x = -1000.0;
+                commands.entity(entity).despawn();
             } else {
                 let color = BRICK_HEALTH_COLORS[BRICK_HEALTH_MAX - brick.0 as usize];
                 // TODO: Don't re-add material here - initialize all at start.
